@@ -1,8 +1,8 @@
 library(tidyverse)
 
 # Read in data
-d_math <- read.csv2("~/Documents/Data Science Learning/Student_Outcomes/Data/student-mat.csv")
-d_port <- read.csv2("~/Documents/Data Science Learning/Student_Outcomes/Data/student-por.csv")
+d_math <- read.csv2("~/Documents/Data_Science_Learning/Student_Outcomes/Data/student-mat.csv")
+d_port <- read.csv2("~/Documents/Data_Science_Learning/Student_Outcomes/Data/student-por.csv")
 
 ## DATA WRANGLING
 
