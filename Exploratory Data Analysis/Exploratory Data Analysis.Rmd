@@ -1,0 +1,321 @@
+---
+title: "Exploratory Data Analysis"
+author: "Gwen Rino"
+date: "9/15/2017"
+output: 
+  md_document:
+    variant: markdown_github
+---
+
+```{r, echo=FALSE}
+library(tidyverse)
+
+d_math <- read.csv2("~/Desktop/Springboard_Data_Science_Intro/Capstone/Data/student-mat.csv")
+d_port <- read.csv2("~/Desktop/Springboard_Data_Science_Intro/Capstone/Data/student-por.csv")
+
+# Tidy up variable types, labels of variables
+d_math$studytime <- factor(d_math$studytime, labels = c("<2 hrs", "2-5 hrs", "5-10 hrs", ">10 hrs"))
+d_port$studytime <- factor(d_port$studytime, labels = c("<2 hrs", "2-5 hrs", "5-10 hrs", ">10 hrs"))
+d_math$failures <- factor(d_math$failures, labels = c("0", "1", "2", "3"))
+d_port$failures <- factor(d_port$failures, labels = c("0", "1", "2", "3"))
+d_math$famsize <- factor(d_math$famsize, labels = c(">3", "<=3"))
+d_port$famsize <- factor(d_port$famsize, labels = c(">3", "<=3"))
+d_math$Medu <- factor(d_math$Medu, labels = c("None", "Primary", "Middle", "Secondary", "Higher"))
+d_port$Medu <- factor(d_port$Medu, labels = c("None", "Primary", "Middle", "Secondary", "Higher"))
+d_math$Fedu <- factor(d_math$Fedu, labels = c("None", "Primary", "Middle", "Secondary", "Higher"))
+d_port$Fedu <- factor(d_port$Fedu, labels = c("None", "Primary", "Middle", "Secondary", "Higher"))
+d_math$traveltime <- factor(d_math$traveltime, labels = c("<15 min", "15-30 min", "30-60 min", ">60 min"))
+d_port$traveltime <- factor(d_port$traveltime, labels = c("<15 min", "15-30 min", "30-60 min", ">60 min"))
+d_math$famrel <- factor(d_math$famrel, labels = c("Very Bad", "Poor", "Fair", "Good", "Excellent"))  
+d_port$famrel <- factor(d_port$famrel, labels = c("Very Bad", "Poor", "Fair", "Good", "Excellent")) 
+d_math$freetime <- factor(d_math$freetime, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_port$freetime <- factor(d_port$freetime, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_math$goout <- factor(d_math$goout, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_port$goout <- factor(d_port$goout, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_math$Dalc <- factor(d_math$Dalc, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_port$Dalc <- factor(d_port$Dalc, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_math$Walc <- factor(d_math$Walc, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_port$Walc <- factor(d_port$Walc, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_math$health <- factor(d_math$health, labels = c("Very Bad", "Poor", "Fair", "Good", "Excellent"))  
+d_port$health <- factor(d_port$health, labels = c("Very Bad", "Poor", "Fair", "Good", "Excellent")) 
+
+course <- rep("math", times = length(d_math$school))
+d_math <- cbind(d_math, course)
+
+course <- rep("port", times = length(d_port$school))
+d_port <- cbind(d_port, course)
+
+d_total <- rbind(d_math, d_port)
+d_total$course <- factor(d_total$course, labels = c("Math", "Portuguese"))
+
+rm(course)
+```
+
+# Understanding the dependent variable
+
+My first step was to explore the dependent variable, G3. I calculated its mean and median, I made a histogram in order to understand its distribution, and I made a variety of plots and calculations to understand how Portuguese grades compare with math grades.
+
+```{r}
+# Distribution of G3 grades
+mean(d_total$G3, na.rm = TRUE) # ~11.34
+median(d_total$G3, na.rm = TRUE) # 11
+
+ggplot(d_total, aes(x = G3)) +
+  geom_histogram(aes(y = ..density..), binwidth = 1) +
+  stat_function(fun = dnorm,
+                args = list(mean = mean(d_total$G3, na.rm = TRUE), sd = sd(d_total$G3, na.rm = TRUE)),
+                lwd = 1,
+                col = "red") +
+  xlab("Final Grade")
+
+# How do distributions of math and Portuguese grades compare?
+ggplot(d_total, aes(x = G3)) +
+  geom_histogram(aes(y = ..density..), binwidth = 1) +
+  stat_function(fun = dnorm,
+                args = list(mean = mean(d_total$G3, na.rm = TRUE), sd = sd(d_total$G3, na.rm = TRUE)),
+                lwd = 1,
+                col = "red") +
+  xlab("Final Grade") +
+  facet_grid(. ~ course) 
+
+ggplot(d_total, aes(x = G3, y = ..density.., col = course)) +
+  geom_freqpoly(binwidth = 1, position = "identity") +
+  xlab("Final Grade")
+
+ggplot(d_total, aes(x=course, y=G3,colour=course)) + 
+  geom_boxplot(notch = T) +
+  xlab("Math vs. Portuguese") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.1))
+
+mean(d_math$G3, na.rm = TRUE) # ~10.42
+median(d_math$G3, na.rm = TRUE) # 11
+mean(d_port$G3, na.rm = TRUE) # ~11.91
+median(d_port$G3, na.rm = TRUE) # 12
+
+nrow(d_math[d_math$G3 < 2, ]) / nrow(d_math) # ~9.6% 
+nrow(d_port[d_port$G3 < 2, ]) / nrow(d_port) # ~2.5% 
+
+nrow(d_math[d_math$G3 >= 18, ]) / nrow(d_math) # ~4.6%
+nrow(d_port[d_port$G3 >= 18, ]) / nrow(d_port) # ~2.6%
+```
+
+I learned that the distribution of G3 approximates a normal curve. Math grades averaged lower than Portuguese grades, and students were more likely to fail math than Portuguese, but a higher percentage of math students got very high grades than did Portuguese students.
+
+# G1 and G2 as predictor variables
+
+I assumed that a student's interim grades at G1 and G2 would be very strong predictors of final grade G3. This was easy to confirm with scatterplots, which show a strong linear relationship between interim grades and final grades.
+
+```{r}
+ggplot(d_total, aes(x=G1, y=G3)) +
+         geom_point(position = "jitter", alpha=0.6) +
+         xlab("First period grade") + ylab("Final grade")
+
+ggplot(d_total, aes(x=G2, y=G3)) +
+  geom_point(position = "jitter", alpha=0.6) +
+  xlab("Second period grade") + ylab("Final grade")
+
+summary(aov(G3 ~ G1 + G2, data = d_total)) # ANOVA confirms significance of G1 and G2.
+```
+
+# Predictor variables that are particular to the course (math or Portuguese)
+
+There are five variables that are particular to the course of study: studytime, failures, schoolsup, famsup, and paid. For each of these variables, I made boxplots in order to compare the mean and median scores for each level of the variable, and I made various other scatterplots. I also did either the one-way ANOVA test or the Student T-test to understand more about the statistical significance of each variable.
+
+## Studytime: weekly study time for the course
+
+```{r}
+ggplot(d_total, aes(x=studytime, y=G3,colour=studytime)) + 
+  geom_boxplot(notch = T) +
+  xlab("Study Time Per Week") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.1))
+# Highest median grades among students who study 5-10 hrs/week.
+
+summary(aov(G3 ~ studytime, data = d_total)) # p-value is 9.92e-07, significant.
+
+# Is it different for math and Portuguese?
+summary(aov(G3 ~ studytime, data = d_math)) # p-value = ~5.2%, not significant (barely)
+summary(aov(G3 ~ studytime, data = d_port)) # p-value = 1.09e-10, significant
+# Study time has a bigger impact on Portuguese grades than on math grades.
+summary(aov(G3 ~ studytime*course, data = d_total)) # Confirmed.
+```
+
+## Failures: previous failures in the subject area
+
+```{r}
+ggplot(d_total, aes(x=failures, y=G3,colour=failures)) + 
+  geom_boxplot(notch = T) +
+  xlab("# Courses Previously Failed") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.3))
+# Higher median grades among students with 0 failures. No high grades among students with several failures.
+
+# Previous failures appear rare. What % of students never previously failed?
+nrow(d_total[d_total$failures == 0, ]) / nrow(d_total) # ~82.5% of students.
+
+# A portion of students absolutely fail regardless of whether they've failed before, 
+# but this is much more likely for students who have previously failed.
+nrow(d_total[d_total$G3 < 2 & d_total$failures == 0, ]) / nrow(d_total[d_total$failures == 0, ]) # ~2.8%
+nrow(d_total[d_total$G3 < 2 & d_total$failures == 1, ]) / nrow(d_total[d_total$failures == 1, ]) # 15%
+nrow(d_total[d_total$G3 < 2 & d_total$failures == 2, ]) / nrow(d_total[d_total$failures == 2, ]) # ~18.2%
+nrow(d_total[d_total$G3 < 2 & d_total$failures == 3, ]) / nrow(d_total[d_total$failures == 3, ]) # 20%
+
+summary(aov(G3 ~ failures, data = d_total)) # p-value < 2e-16, significant.
+```
+
+## Schoolsup: extra educational support in the subject area
+
+```{r}
+ggplot(d_total, aes(x=schoolsup, y=G3,color=schoolsup)) + 
+  geom_boxplot(notch = T) +
+  xlab("Extra Educational Support") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.3))
+# Students not getting support have higher median and mean grades.
+
+t.test(G3 ~ schoolsup, data = d_total) # p-value = 0.0007223, significant.
+```
+
+## Famsup: family educational support in the subject area
+
+```{r}
+ggplot(d_total, aes(x=famsup, y=G3, col = course)) +
+  geom_point(position = "jitter", alpha = 0.6) +
+  xlab("Family Educational Support") + ylab("Final Grade")
+  
+# No apparent correlations here, confirmed by t-test giving p-value = 67.3%.
+t.test(G3 ~ famsup, data = d_total)
+```
+
+## Paid: paid tutoring in the subject area
+```{r}
+ggplot(d_total, aes(x=paid, y=G3,color=paid)) + 
+  geom_boxplot(notch = T) +
+  xlab("Extra Paid Classes") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.3))
+# Higher median grades among students who don't get support.
+
+ggplot(d_total, aes(x=paid, y=G3, col = course)) +
+  geom_point(position = "jitter", alpha = 0.6) +
+  xlab("Extra Paid Classes") + ylab("Final Grade")
+# A lot of math students pay for extra help! What percent? Compared to Portuguese students?
+sum(d_math$paid == "yes") / nrow(d_math) # ~46%
+sum(d_port$paid == "yes") / nrow(d_port) # ~6%
+
+# Does paid help improve outcomes for math students?
+nrow(d_math[d_math$G3 < 2 & d_math$paid == "yes", ]) / sum(d_math$paid == "yes") # ~4.4%
+nrow(d_math[d_math$G3 < 2 & d_math$paid == "no", ]) / sum(d_math$paid == "no") # ~14%
+# Yes, paid math help decreases the rate of math failure substantially.
+
+# T-test analysis of impact of paid help shows it only helps for math.
+t.test(G3 ~ paid, data = d_total) # p-value = 9.6%, not significant.
+t.test(G3 ~ paid, data = d_math) # p-value = ~3.8%, significant.
+t.test(G3 ~ paid, data = d_port) # p-value = ~12.3%, not significant.
+```
+
+I learned that all of these variables except famsup have some correlation with G3. Failures are an especially significant variable. Paid tutoring has much more impact on math grades than on Portuguese grades. Interestingly, students receiving schoolsup average lower grades, but this may be explained because weaker students are more likely to seek out extra academic support. Another interesting outcome is that the students in the second-highest bin for studytime average higher grades than those in the highest bin.
+
+# Predictor variables that are not particular to the course
+
+With 25 more variables to explore, I made dozens of plots and ran many, many T-tests and ANOVA tests.
+
+Here are some of my most interesting observations and the code that reveals them:
+
+## Students at the school GP were significantly more likely to fail math; students at the school MS were significantly more likely to fail Portuguese.
+```{r}
+ggplot(d_total, aes(x=school, y=G3, col = course)) +
+  geom_point(position = "jitter", alpha = 0.6) +
+  xlab("School") + ylab("Final Grade")
+# It looks like a lot more students fail math at GP than at MS
+nrow(d_total[d_total$school == "GP" & d_total$course == "Math" & d_total$G3 < 2, ]) / nrow(d_total[d_total$school == "GP", ]) # ~4.4%
+nrow(d_total[d_total$school == "MS" & d_total$course == "Math" & d_total$G3 < 2, ]) / nrow(d_total[d_total$school == "MS", ]) # ~1.5%
+# GP has about 3 times the math failure rate of MS.
+nrow(d_total[d_total$school == "GP" & d_total$course == "Portuguese" & d_total$G3 < 2, ]) / nrow(d_total[d_total$school == "GP", ]) # ~.26%
+nrow(d_total[d_total$school == "MS" & d_total$course == "Portuguese" & d_total$G3 < 2, ]) / nrow(d_total[d_total$school == "MS", ]) # ~5.1%
+
+t.test(G3 ~ school, data = d_total) # p-value = 5.168e-05, significant
+```
+
+## Female students average higher grades in Portuguese; male students average higher grades in math.
+```{r}
+ggplot(d_total, aes(x=sex, y=G3, color=sex)) +
+  geom_boxplot(notch = T) +
+  xlab("Sex") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.3)) +
+  facet_grid(. ~ course) 
+```
+
+## Average grades are higher among students with urban addresses than rural addresses.
+```{r}
+ggplot(d_total, aes(x=address, y=G3, color=address)) +
+  geom_boxplot(notch = T) +
+  xlab("Rural or Urban") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.3))
+
+t.test(G3 ~ address, data = d_total) # p-value = 0.0002071, significant
+```
+
+## Average grades are higher among students with smaller family size.
+```{r}
+ggplot(d_total, aes(x=famsize, y=G3,color=famsize)) +
+  geom_boxplot(notch = T) +
+  xlab("Family Size") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.3))
+```
+
+## Both mother's and father's level of education is significant to students' grades, on average. Interestingly, among students whose mother's have little or no education, many more are female than male.
+```{r}
+ggplot(d_total, aes(x=Medu, y=G3,color=Medu)) +
+  geom_boxplot(notch = F) +
+  xlab("Mother's Education") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.1))
+
+ggplot(d_total, aes(x=Fedu, y=G3,color=Fedu)) +
+  geom_boxplot(notch = F) +
+  xlab("Father's Education") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.1))
+
+nrow(d_total[d_total$Medu %in% c("none", "primary", "upper primary") & d_total$sex == "F", ]) / nrow(d_total[d_total$Medu %in% c("none", "primary", "upper primary"), ])
+# 62% of students whose mothers have little education are female.
+```
+
+## Not surprisingly, average grades are significantly higher among students who intend to pursue higher education.
+```{r}
+ggplot(d_total, aes(x=higher, y=G3,color=higher)) +
+  geom_boxplot(notch = T) +
+  xlab("Wants to Pursue Higher Ed") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.3))
+
+t.test(G3 ~ higher, data = d_total) # p-value = 3.68e-13, significant
+```
+
+## Students who report higher levels of free time or going out with friends receive lower grades, on average.
+```{r}
+ggplot(d_total, aes(x=freetime, y=G3,color=freetime)) +
+  geom_boxplot(notch = T) +
+  xlab("Free Time After School") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.1))
+
+summary(aov(G3 ~ freetime, data = d_total)) # p-value = 3.61%, significant
+
+ggplot(d_total, aes(x=goout, y=G3,color=goout)) +
+  geom_boxplot(notch = T) +
+  xlab("Going Out with Friends") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.1))
+
+summary(aov(G3 ~ goout, data = d_total)) # p-value = ~0.15%, significant
+```
+
+## Alcohol consumption seems to be inversely correlated with grades.
+```{r}
+ggplot(d_total, aes(x=Dalc, y=G3,color=Dalc)) +
+  geom_boxplot(notch = F) +
+  xlab("Workday Alcohol Consumption") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.1))
+
+summary(aov(G3 ~ Dalc, data = d_total)) # p-value = 2.65e-05, significant
+
+ggplot(d_total, aes(x=Walc, y=G3,color=Walc)) +
+  geom_boxplot(notch = T) +
+  xlab("Weekend Alcohol Consumption") + ylab("Final Grade")+
+  geom_jitter(shape=16, position=position_jitter(0.1))
+
+summary(aov(G3 ~ Walc, data = d_total)) # p-value = ~0.02%, significant
+```

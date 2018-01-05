@@ -1,0 +1,913 @@
+---
+title: "Machine Learning in Capstone"
+author: "Gwen Rino"
+date: "9/25/2017"
+output: 
+  md_document:
+    variant: markdown_github
+---
+
+```{r, echo=FALSE}
+library(tidyverse)
+d_math <- read.csv2("~/Desktop/Springboard_Data_Science_Intro/Capstone/Data/student-mat.csv")
+d_port <- read.csv2("~/Desktop/Springboard_Data_Science_Intro/Capstone/Data/student-por.csv")
+
+# Tidy up variable types, labels of variables
+d_math$studytime <- factor(d_math$studytime, labels = c("<2 hrs", "2-5 hrs", "5-10 hrs", ">10 hrs"))
+d_port$studytime <- factor(d_port$studytime, labels = c("<2 hrs", "2-5 hrs", "5-10 hrs", ">10 hrs"))
+d_math$failures <- factor(d_math$failures, labels = c("0", "1", "2", "3"))
+d_port$failures <- factor(d_port$failures, labels = c("0", "1", "2", "3"))
+d_math$famsize <- factor(d_math$famsize, labels = c(">3", "<=3"))
+d_port$famsize <- factor(d_port$famsize, labels = c(">3", "<=3"))
+d_math$Medu <- factor(d_math$Medu, labels = c("None", "Primary", "Middle", "Secondary", "Higher"))
+d_port$Medu <- factor(d_port$Medu, labels = c("None", "Primary", "Middle", "Secondary", "Higher"))
+d_math$Fedu <- factor(d_math$Fedu, labels = c("None", "Primary", "Middle", "Secondary", "Higher"))
+d_port$Fedu <- factor(d_port$Fedu, labels = c("None", "Primary", "Middle", "Secondary", "Higher"))
+d_math$traveltime <- factor(d_math$traveltime, labels = c("<15 min", "15-30 min", "30-60 min", ">60 min"))
+d_port$traveltime <- factor(d_port$traveltime, labels = c("<15 min", "15-30 min", "30-60 min", ">60 min"))
+d_math$famrel <- factor(d_math$famrel, labels = c("Very Bad", "Poor", "Fair", "Good", "Excellent"))  
+d_port$famrel <- factor(d_port$famrel, labels = c("Very Bad", "Poor", "Fair", "Good", "Excellent")) 
+d_math$freetime <- factor(d_math$freetime, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_port$freetime <- factor(d_port$freetime, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_math$goout <- factor(d_math$goout, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_port$goout <- factor(d_port$goout, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_math$Dalc <- factor(d_math$Dalc, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_port$Dalc <- factor(d_port$Dalc, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_math$Walc <- factor(d_math$Walc, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_port$Walc <- factor(d_port$Walc, labels = c("Very Low", "Low", "Medium", "High", "Very High"))
+d_math$health <- factor(d_math$health, labels = c("Very Bad", "Poor", "Fair", "Good", "Excellent"))  
+d_port$health <- factor(d_port$health, labels = c("Very Bad", "Poor", "Fair", "Good", "Excellent")) 
+
+course <- rep("math", times = length(d_math$school))
+d_math <- cbind(d_math, course)
+
+course <- rep("port", times = length(d_port$school))
+d_port <- cbind(d_port, course)
+
+d_total <- rbind(d_math, d_port)
+d_total$course <- factor(d_total$course, labels = c("Math", "Portuguese"))
+```
+
+This is a supervised regression problem, in which the goal is to predict a student's final grade from a variety of independent variables.
+
+# A STRONG LINEAR RELATIONSHIP
+
+There is a strong linear relationship between the first and second period grades (G1 and G2) and the final grade (G3), as is apparent in these scatterplots.
+```{r, echo=FALSE}
+ggplot(d_total, aes(x=G1, y=G3)) +
+         geom_point(position = "jitter", alpha=0.6) +
+         xlab("First period grade G1") + ylab("Final grade G3")
+
+ggplot(d_total, aes(x=G2, y=G3)) +
+  geom_point(position = "jitter", alpha=0.6) +
+  xlab("Second period grade G2") + ylab("Final grade G3")
+```
+
+There are obvious outliers -- students who had nonzero grades (mostly in the range of 5-10) at G1 and/or G2, but then at G3 received grades of 0. Presumably these are students who dropped out before the end of the term. However, even with this group of outliers, the linear relationship between G1/G2 and G3 appears very strong, so it makes sense to try using linear regression to build a model.
+
+First I'll split the data into a training set and test set.
+```{r}
+set.seed(123)
+dt = sort(sample(nrow(d_total), nrow(d_total)*.7))
+Train.reg <- d_total[dt,]
+Test.reg <- d_total[-dt,]
+```
+
+Then I'll build the model.
+```{r}
+lin.model <- lm(G3 ~ G1 + G2, data = Train.reg)
+summary(lin.model) 
+```
+Adjusted R-squ value is 0.84, good fit.
+
+How is the model on test data?
+```{r}
+lm.pred <- predict(lin.model, newdata = Test.reg)
+# Calculate R-squared
+SSE = sum((Test.reg$G3 - lm.pred)^2)
+SST = sum((Test.reg$G3 - mean(Train.reg$G3))^2)
+1 - SSE/SST 
+```
+Adjusted R-squ value is 0.80, also a good fit.
+
+With good R-squared values, I'll now look at the diagnostic plots for this model.
+```{r}
+plot(lin.model)
+```
+
+The Residuals vs. Fitted plot shows the strong linear relationship for typical students, and also the sizeable group of outlier students who were passing at midterm but failed at G3. The Normal Q-Q plot shows that the residuals in the lowest quantile are not normally distributed. This also makes sense given the group of students who were passing at midterm but failed at G3. The Scale Location plot also reveals the outlier group. The Residuals vs. Leverage plot shows no data outside Cook's distance, which means that there aren't any individual data points that are unduly influencing the model.
+
+The diagnostic plots reveal that observations of particular concern are 265, 342, 559.
+```{r}
+d_total[265, 31:33]
+d_total[342, 31:33]
+d_total[559, 31:33]
+```
+
+All have G1 + G2 >= 19 and G3 = 0, students who were doing fairly well at midterm but dropped out completely. Along with these three, how many students in the dataset fall into this category, and who are they?
+```{r, eval=FALSE}
+nrow(d_total[d_total$G1 + d_total$G2 >= 19 & d_total$G3 == 0, ])
+subset(d_total, d_total$G1 + d_total$G2 >= 19 & d_total$G3 == 0, select = c(G1, G2, G3))
+```
+This code identifies 6 students in this group: 260, 265, 297, 335, 342, and 559.
+
+How much better would the model be without these students?
+```{r, eval=FALSE}
+dropouts <- subset(d_total, d_total$G1 + d_total$G2 >= 19 & d_total$G3 == 0)
+d_adjusted <- anti_join(d_total, dropouts)
+lin.model.adj <- lm(G3 ~ G1 + G2, data = d_adjusted)
+summary(lin.model.adj)
+plot(lin.model.adj)
+```
+This code (not evaluated here) reveals an improved adjusted R-squared value (0.8588) and F-statistic (3155) over the original linear model, but the diagnostic plots show all the same anomalies of the original model.
+
+I'll create one more linear model, this one removing all the students for whom G3 = 0 but G1 and/or G2 > 0 ("dropouts").
+```{r}
+zeroes <- subset(d_total, d_total$G3 == 0) # Subset students for whom G3=0 
+dropouts.all <- subset(zeroes, zeroes$G1 != 0 | zeroes$G2 != 0) # Subset students among these for whom G1 and/or G2 > 0
+d_adj.all <- anti_join(d_total, dropouts.all) # Create dataset of all students except the dropouts.
+lin.model.adj.all <- lm(G3 ~ G1 + G2, data = d_adj.all) # Create linear model on this dataset.
+summary(lin.model.adj.all)
+plot(lin.model.adj.all)
+```
+So, removing the dropouts from the dataset makes a linear model with an even better adjusted R-squared (0.9027) and F-statistic (4592). This adjustment also eliminates all the irregularities in the diagnostic plots.
+
+To conclude, the linear model is great at predicting G3 for students whose performance is quite consistent from one grading period to the next, but it fails to anticipate the dropouts (students who start out passing but ultimately fail). Any educator could tell you that this outcome is neither surprising (most students who are doing poorly at midterm are likely to have low final grades, and the converse) nor very useful (since it doesn't identify which students are at risk of failure until they are already failing). My question, then, is whether I can find a model that predicts G3 without the variables G1 or G2.
+
+# SEEKING LINEAR RELATIONSHIPS BETWEEN G3 AND PREDICTORS OTHER THAN G1 AND G2
+
+Exploratory data analysis suggests that nearly all the predictor variables have at least some correlation with G3, so I used forward- and backward- stepwise selection to try to identify the most likely combination of predictor variables for a good model.
+
+Here is my code, and the outcomes:
+```{r, eval=FALSE}
+library(leaps)
+regfit.fwd.1 <- regsubsets(G3 ~ . -G1 -G2, data = d_total, method = "forward")
+regfit.bwd.1 <- regsubsets(G3 ~ . -G1 -G2, data = d_total, method = "backward")
+
+summary(regfit.fwd.1) 
+# Best 1 var mod = failures1
+# Best 2 var mod = + failures3
+# Best 3 var mod = + failures2 
+# Best 4 var mod = + coursePortuguese
+# Best 5 var mod = + higheryes
+# Best 6 var mod = + schoolMS
+# Best 7 var mod = + MeduHigher
+# Best 8 var mod = + schoolsupyes
+summary(regfit.bwd.1) 
+# Best 1 var mod = failures1
+# Best 2 var mod = + failures3
+# Best 3 var mod = + failures2 
+# Best 4 var mod = + coursePortuguese
+# Best 5 var mod = + higheryes
+# Best 6 var mod = + schoolMS
+# Best 7 var mod = + schoolsupyes
+# Best 8 var mod = + studytime5-10 hrs
+```
+
+Stepwise variable selection suggests that the variables "failures", "course", "higher", and "school" are most likely to be significant. However, the adjusted R-squared values of models built with these variables are all very low. Without G1 and G2, linear regression fails to calculate a good predictive model.
+```{r, eval=FALSE}
+lin.model.2 <- lm(G3 ~ failures, data = Train.reg)
+summary(lin.model.2) # Adjusted R-squared:  0.1458
+lin.model.3 <- lm(G3 ~ failures + course, data = Train.reg)
+summary(lin.model.3) # Adjusted R-squared:  0.1604 
+lin.model.4 <- lm(G3 ~ failures + course + higher, data = Train.reg)
+summary(lin.model.4) # Adjusted R-squared:  0.1747
+lin.model.5 <- lm(G3 ~ failures + course + higher + school, data = Train.reg)
+summary(lin.model.5) # Adjusted R-squared:  0.1917
+```
+
+# REFRAME THE SITUATION AS A CLASSIFICATION PROBLEM
+
+From the perspective of educators, it is not actually so important to predict students' final numerical grades G3. Educators are most concerned with identifying students who are at risk of failing early enough to intervene with extra support. Therefore, I decided to reframe the situation as a classification problem: Can I build a model that predicts which students are at risk of failing without depending on G1 and G2?
+
+In order to accomplish this, I converted G3 to a categorical factor variable called "outcome" with two levels, "pass" and "fail".
+
+Here is my code:
+```{r}
+d_math_cat <- d_math %>% mutate(outcome=ifelse(G3<8,"fail","pass")) %>%
+  select(-G3)
+d_port_cat <- d_port %>% mutate(outcome=ifelse(G3<8,"fail","pass")) %>%
+  select(-G3)
+d_math_cat$outcome <- as.factor(d_math_cat$outcome)
+d_port_cat$outcome <- as.factor(d_port_cat$outcome)
+d_total_cat <- rbind(d_math_cat, d_port_cat)
+```
+
+The dataset is unbalanced between the two outcomes; less than 10% are "fail".
+```{r}
+nrow(d_total_cat[d_total_cat$outcome == "fail", ])/nrow(d_total_cat)
+```
+
+First I'll split the data into a training set and a test set.
+```{r}
+library(caTools)
+set.seed(77)
+split <- sample.split(d_total_cat$outcome, SplitRatio = 0.75)
+Train.cat <- subset(d_total_cat, split == TRUE) 
+Test.cat <- subset(d_total_cat, split == FALSE)
+```
+
+Then I'll balance the dataset using various techniques from package ROSE (note: only the training set!)
+1. Oversample the minority class "fail"
+2. Undersample the majority class "pass"
+3. Both of the above
+4. Use synthetically generated "fail" data
+
+```{r}
+library(ROSE)
+# Unbalanced dataset
+table(Train.cat$outcome)
+# Oversample
+Train.cat.over <- ovun.sample(outcome ~., data = Train.cat, method = "over", N=1416)$data
+table(Train.cat.over$outcome)
+# Undersample
+Train.cat.under <- ovun.sample(outcome ~., data = Train.cat, method = "under", N=150)$data
+table(Train.cat.under$outcome)
+# Both over and undersample
+Train.cat.both <- ovun.sample(outcome ~., data = Train.cat, method = "both", p=0.5, N=783, seed = 1)$data
+table(Train.cat.both$outcome)
+# Synthetic
+Train.cat.syn <- ROSE(outcome ~., data = Train.cat, seed = 1)$data
+table(Train.cat.syn$outcome)
+```
+
+# LOGISTIC REGRESSION
+
+First, calculate baseline to beat (percent of total outcomes that are the most likely outcome, "pass").
+```{r}
+nrow(d_total_cat[d_total_cat$outcome == "pass", ])/nrow(d_total_cat) # 90.4%
+```
+
+Because the majority outcome "pass" is so much more common than the minority outcome "fail", 
+accuracy is not that great a measure of goodness of fit. Used "balanced accuracy" instead (arithmetic mean of accuracy of prediction of each class).
+
+Presumably G1 and G2 would be very effective predictors of outcome.
+```{r}
+log.model.1 <- glm(outcome ~ G1 + G2, data = Train.cat, family = binomial)
+summary(log.model.1) # AIC: 190.57
+log.pred.1 <- predict(log.model.1, newdata = Test.cat, type = "response")
+table(Test.cat$outcome, log.pred.1 > 0.5) # Confusion matrix
+(17+234)/261 # Accuracy: 0.96
+((17/(17+8))+(234/(234+2)))/2 # Balanced accuracy: 0.84
+17/(17+8) # Specificity: 0.68
+```
+Well, this model does a good job identifying students who pass, but not so much students who fail.
+
+Would it do better if the data were better balanced? Use the ROSE package to balance the dataset by four methods
+
+```{r}
+library(ROSE)
+
+# Unbalanced dataset
+table(Train.cat$outcome) # How many pass, how many fail in unbalanced training set?
+
+# Balance training set by oversampling "fail"
+Train.cat.over <- ovun.sample(outcome ~., data = Train.cat, method = "over", N=1416)$data
+table(Train.cat.over$outcome) # Numbers in each class
+
+# Balance training set by undersampling "pass"
+Train.cat.under <- ovun.sample(outcome ~., data = Train.cat, method = "under", N=150)$data
+table(Train.cat.under$outcome) # Numbers in each class
+
+# Balance training set by both over- and undersampling
+Train.cat.both <- ovun.sample(outcome ~., data = Train.cat, method = "both", p=0.5, N=783, seed = 1)$data
+table(Train.cat.both$outcome) # Numbers in each class
+
+# Balance training set by creating synthetic minority class observations
+Train.cat.syn <- ROSE(outcome ~., data = Train.cat, seed = 1)$data
+table(Train.cat.syn$outcome) # Numbers in each class
+```
+
+Recreate logistic regression model using each of the four balanced datasets. Which has best results?
+
+Using dataset with "fail" oversampled
+```{r}
+log.model.1.over <- glm(outcome ~ G1 + G2, data = Train.cat.over, family = binomial)
+summary(log.model.1.over) # AIC: 646.71
+log.pred.1.over <- predict(log.model.1.over, newdata = Test.cat, type = "response")
+table(Test.cat$outcome, log.pred.1.over > 0.5) # Confusion matrix
+(24+220)/261 # Accuracy: 0.935
+((24/(24+1))+(220/(220+16)))/2 # Balanced accuracy: 0.946
+24/(24+1) # Specificity: 0.96
+```
+
+Using dataset with "pass" undersampled
+```{r}
+log.model.1.under <- glm(outcome ~ G1 + G2, data = Train.cat.under, family = binomial)
+summary(log.model.1.under) # AIC: 68.06
+log.pred.1.under <- predict(log.model.1.under, newdata = Test.cat, type = "response")
+table(Test.cat$outcome, log.pred.1.under > 0.5) # Confusion matrix
+(24+220)/261 # Accuracy: 0.935
+((24/(24+1))+(220/(220+16)))/2 # Balanced accuracy: 0.946
+24/(24+1) # Specificity: 0.96
+```
+
+Using dataset with both over- and undersampling
+```{r}
+log.model.1.both <- glm(outcome ~ G1 + G2, data = Train.cat.both, family = binomial)
+summary(log.model.1.both) # AIC: 357.95
+log.pred.1.both <- predict(log.model.1.both, newdata = Test.cat, type = "response")
+table(Test.cat$outcome, log.pred.1.both > 0.5) # Confusion matrix
+(24+220)/261 # Accuracy: 0.935
+((24/(24+1))+(220/(220+16)))/2 # Balanced accuracy: 0.946
+24/(24+1) # Specificity: 0.96
+```
+
+Using dataset with synthetic "fail" observations
+```{r}
+log.model.1.syn <- glm(outcome ~ G1 + G2, data = Train.cat.syn, family = binomial)
+summary(log.model.1.syn) # AIC: 463.2
+log.pred.1.syn <- predict(log.model.1.syn, newdata = Test.cat, type = "response")
+table(Test.cat$outcome, log.pred.1.syn > 0.5) # Confusion matrix
+(24+220)/261 # Accuracy: 0.935
+((24/(24+1))+(220/(220+16)))/2 # Balanced accuracy: 0.946
+24/(24+1) # Specificity: 0.96
+```
+
+All four of these models make identical predictions, according to the confusion matrixes,
+so their accuracy and specificity are the same. However, the model made from the dataset with undersampling has the lowest AIC, so it is the best.
+
+How about logistic regression models built on combinations of the same variables that I tried in the linear regression models? Try each of these with the balanced datasets.
+
+With "failures" as only predictor
+```{r}
+log.model.2 <- glm(outcome ~ failures, data = Train.cat, family = binomial)
+summary(log.model.2) # AIC: 452.03
+log.model.2.over <- glm(outcome ~ failures, data = Train.cat.over, family = binomial)
+summary(log.model.2.over) # AIC: 1762.7
+log.model.2.under <- glm(outcome ~ failures, data = Train.cat.under, family = binomial)
+summary(log.model.2.under) # AIC: 196.43
+log.model.2.both <- glm(outcome ~ failures, data = Train.cat.both, family = binomial)
+summary(log.model.2.both) # AIC: 970.73
+log.model.2.syn <- glm(outcome ~ failures, data = Train.cat.syn, family = binomial)
+summary(log.model.2.syn) # AIC: 970.73
+```
+Best version uses undersampling
+
+"Failures" and "course" as predictors
+```{r}
+log.model.3 <- glm(outcome ~ failures + course, data = Train.cat, family = binomial)
+summary(log.model.3) # AIC: 434.15
+log.model.3.over <- glm(outcome ~ failures + course, data = Train.cat.over, family = binomial)
+summary(log.model.3.over) # AIC: 1628
+log.model.3.under <- glm(outcome ~ failures + course, data = Train.cat.under, family = binomial)
+summary(log.model.3.under) # AIC: 182.29
+log.model.3.both <- glm(outcome ~ failures + course, data = Train.cat.both, family = binomial)
+summary(log.model.3.both) # AIC: 928.7
+log.model.3.syn <- glm(outcome ~ failures + course, data = Train.cat.syn, family = binomial)
+summary(log.model.3.syn) # AIC: 928.7
+```
+Best version uses undersampling
+
+"Failures", "course", "higher" as predictors
+```{r}
+log.model.4 <- glm(outcome ~ failures + course + higher, data = Train.cat, family = binomial)
+summary(log.model.4) # AIC: 431.76
+log.model.4.over <- glm(outcome ~ failures + course + higher, data = Train.cat.over, family = binomial)
+summary(log.model.4.over) # AIC: 1606.8
+log.model.4.under <- glm(outcome ~ failures + course + higher, data = Train.cat.under, family = binomial)
+summary(log.model.4.under) # AIC: 180.4
+log.model.4.both <- glm(outcome ~ failures + course + higher, data = Train.cat.both, family = binomial)
+summary(log.model.4.both) # AIC: 918.95
+log.model.4.syn <- glm(outcome ~ failures + course + higher, data = Train.cat.syn, family = binomial)
+summary(log.model.4.syn) # AIC: 918.95
+```
+Best version uses undersampling
+
+"Failures", "course", "higher", "school" as predictors
+```{r}
+log.model.5 <- glm(outcome ~ failures + course + higher + school, data = Train.cat, family = binomial)
+summary(log.model.5) # AIC: 427.87 
+log.model.5.over <- glm(outcome ~ failures + course + higher + school, data = Train.cat.over, family = binomial)
+summary(log.model.5.over) # AIC: 1555.4
+log.model.5.under <- glm(outcome ~ failures + course + higher + school, data = Train.cat.under, family = binomial)
+summary(log.model.5.under) # AIC: 172.25
+log.model.5.both <- glm(outcome ~ failures + course + higher + school, data = Train.cat.both, family = binomial)
+summary(log.model.5.both) # AIC: 904.76
+log.model.5.syn <- glm(outcome ~ failures + course + higher + school, data = Train.cat.syn, family = binomial)
+summary(log.model.5.syn) # AIC: 904.76
+```
+Best version uses undersampling
+
+Logistic regression model with all variables except G1 and G2?
+```{r}
+log.model.6 <- glm(outcome ~ . -G1 -G2, data = Train.cat, family = binomial)
+summary(log.model.6) # AIC: 457.01
+log.model.6.over <- glm(outcome ~ . -G1 -G2, data = Train.cat.over, family = binomial)
+summary(log.model.6.over) # AIC: 1192.6
+log.model.6.under <- glm(outcome ~ . -G1 -G2, data = Train.cat.under, family = binomial)
+summary(log.model.6.under) # AIC: 142
+log.model.6.both <- glm(outcome ~ . -G1 -G2, data = Train.cat.both, family = binomial)
+summary(log.model.6.both) # AIC: 760.29
+log.model.6.syn <- glm(outcome ~ . -G1 -G2, data = Train.cat.syn, family = binomial)
+summary(log.model.6.syn) # AIC: 766.89
+```
+Best version uses undersampling
+
+Log.model.6.under has the lowest AIC, so try this one.
+```{r}
+Test.cat <- Test.cat[-which(Test.cat$Fedu == "None"), ]
+log.pred.6.under <- predict(log.model.6.under, newdata = Test.cat, type = "response")
+table(Test.cat$outcome, log.pred.6.under > 0.5) # Confusion matrix
+(17+165)/261 # Accuracy: 0.697
+((17/(17+8))+(165/(165+71)))/2 # Balanced accuracy: 0.69
+17/(17+8) # Specificity: 0.68
+```
+
+So, the best logistic regression model that does not include G1 and G2 is not a strong model at all!
+
+# DECISION TREES
+
+Because decision trees do not require linear relationships between variables, this machine learning method might be more successful.
+
+G1 and G2 as only predictors in a decision tree -- try this on the unbalanced dataset first. To test the model, I will calculate the AUC of the ROC curve, the accuracy, the balanced accuracy (i.e. the arithmetic mean of the class-specific accuracies), and the specificity (the accuracy rate of prediction of the minority class, "fail").
+```{r}
+library(rpart)
+library(rpart.plot)
+tree.mod.1 <- rpart(outcome ~ G1 + G2, data = Train.cat, method = "class") # Build model
+tree.pred.1 <- predict(tree.mod.1, newdata = Test.cat, type = "class") # Apply to test set
+roc.curve(Test.cat$outcome, tree.pred.1, plotit = FALSE) # AUC: 0.836
+table(Test.cat$outcome, tree.pred.1) # Confusion matrix
+(17+234)/261 # Accuracy: 0.96
+((17/(17+8))+(234/(234+2)))/2 # Balanced accuracy: 0.84
+17/(17+8) # Specificity: 0.68
+```
+Is the model improved by using a balanced training set? I'll build models using the four methods of balancing the training set.
+```{r}
+# Oversample
+tree.mod.1.over <- rpart(outcome ~ G1 + G2, data = Train.cat.over, method = "class") # Build model
+tree.pred.1.over <- predict(tree.mod.1.over, newdata = Test.cat, type = "class") # Apply to test set
+# Undersample
+tree.mod.1.under <- rpart(outcome ~ G1 + G2, data = Train.cat.under, method = "class") # Build model
+tree.pred.1.under <- predict(tree.mod.1.under, newdata = Test.cat, type = "class") # Apply to test set
+# Both
+tree.mod.1.both <- rpart(outcome ~ G1 + G2, data = Train.cat.both, method = "class") # Build model
+tree.pred.1.both <- predict(tree.mod.1.both, newdata = Test.cat, type = "class") # Apply to test set
+# Synthetic
+tree.mod.1.syn <- rpart(outcome ~ G1 + G2, data = Train.cat.syn, method = "class") # Build model
+tree.pred.1.syn <- predict(tree.mod.1.syn, newdata = Test.cat, type = "class") # Apply to test set
+```
+
+How good is each of these models? 
+```{r}
+# Oversample
+roc.curve(Test.cat$outcome, tree.pred.1.over, plotit = FALSE) # AUC: 0.946
+table(Test.cat$outcome, tree.pred.1.over) # Confusion matrix
+(24+220)/(1+24+220+16) # Accuracy: 0.93
+((24/(24+1))+(220/(220+16)))/2 # Balanced accuracy: 0.95
+24/(24+1) # Specificity: 0.96
+# Undersample
+roc.curve(Test.cat$outcome, tree.pred.1.under, plotit = FALSE) # AUC: 0.899
+table(Test.cat$outcome, tree.pred.1.under) # Confusion matrix
+(24+198)/(1+24+198+38) # Accuracy: 0.85
+((24/(24+1))+(198/(198+38)))/2 # Balanced accuracy: 0.899
+24/(24+1) # Specificity: 0.96
+# Both
+roc.curve(Test.cat$outcome, tree.pred.1.both, plotit = FALSE) # AUC: 0.946
+table(Test.cat$outcome, tree.pred.1.both) # Confusion matrix
+(24+220)/(1+24+220+16) # Accuracy: 0.93
+((24/(24+1))+(220/(220+16)))/2 # Balanced accuracy: 0.95
+24/(24+1) # Specificity: 0.96
+# Synthetic
+roc.curve(Test.cat$outcome, tree.pred.1.syn, plotit = FALSE) # AUC: 0.905
+table(Test.cat$outcome, tree.pred.1.syn) # Confusion matrix
+(21+229)/(4+21+229+7) # Accuracy: 0.96
+((21/(21+4))+(229/(229+7)))/2 # Balanced accuracy: 0.91
+21/(21+4) # Specificity: 0.84
+```
+The best G1/G2 models use either oversampling or both oversampling and undersampling to balance the dataset. These methods produce models with identically high AUCs of ROC curves, balanced accuracies that beat the baseline, and very high specificity (accuracy rate of true negatives).
+
+Here is a visual representation of the best G1/G2 decision tree. It uses the data balanced with both over- and undersampling.
+```{r}
+prp(tree.mod.1.both)
+```
+It may be a good predictive model, but it's not very interesting. It simply predicts that all students with G2 greater than or equal to 8.5 will pass.
+
+How about a decision tree model built on all predictors except G1 and G2?
+```{r}
+tree.mod.2 <- rpart(outcome ~ . -G1 -G2, data = Train.cat, method = "class")
+prp(tree.mod.2)
+```
+This model looks exciting! 
+```{r}
+tree.pred.2 <- predict(tree.mod.2, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.2, plotit = FALSE) # AUC: 0.563
+table(Test.cat$outcome, tree.pred.2) # Confusion matrix
+(4+228)/261 # Accuracy: 0.889
+((4/(21+4))+(228/(228+8)))/2 # Balanced accuracy: 0.56
+4/(4+21) # Specificity: 0.16
+```
+Sadly, the AUC of the ROC curve is terribly low, analysis of the confusion matrix shows the balanced accuracy is far below baseline, and the specificity is only 16%. This is not a good model!
+
+Does using a balanced training set improve this model? Try the set balanced using both over- and undersampling.
+```{r}
+tree.mod.2.both <- rpart(outcome ~ . -G1 -G2, data = Train.cat.both, method = "class")
+tree.pred.2.both <- predict(tree.mod.2.both, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.2.both, plotit = FALSE) # AUC: 0.737
+table(Test.cat$outcome, tree.pred.2.both) # Confusion matrix
+(16+197)/261 # Accuracy: 0.816
+((16/(16+9))+(197/(197+39)))/2 # Balanced accuracy: 0.74
+16/(16+9) # Specificity: 0.64
+```
+Balancing the training data does improve the model, but it still isn't nearly as good as the G1 and G2 decision tree model.
+
+Try building a decision tree model using the variables identified in the stepwise process (the same variables used in best linear regression and best logistic regression). Use data balanced with both over- and undersampling.
+```{r}
+tree.mod.3.both <- rpart(outcome ~ failures + course + higher + school, data = Train.cat.both, method = "class")
+tree.pred.3.both <- predict(tree.mod.3.both, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.3.both, plotit = FALSE) # AUC: 0.798
+table(Test.cat$outcome, tree.pred.3.both) # Confusion matrix
+(24+150)/261 # Accuracy: 0.667
+((24/(24+1))+(150/(150+86)))/2# Balanced accuracy: 0.798
+24/(1+24) # Specificity: 0.96
+```
+Confusion matrix analysis shows that this model is not great. In order to catch the "fail" outcomes with 96% accuracy, the model misses too many "passes".
+
+Just for comparison, what does a decision tree model that includes all predictors, including G1 and G2, look like? Use the dataset balanced with both over- and undersampling.
+```{r}
+tree.mod.4.both <- rpart(outcome ~ ., data = Train.cat.both, method = "class")
+tree.pred.4.both <- predict(tree.mod.4.both, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.4.both, plotit = FALSE) # AUC: 0.91
+table(Test.cat$outcome, tree.pred.4.both) # Confusion matrix
+(22+220)/261 # Accuracy: 0.93
+((22/(22+3))+(220/(220+16)))/2# Balanced accuracy: 0.91
+22/(22+3) # Specificity: 0.88
+```
+Adding more predictors beyond G1 and G2 does not improve the decision tree model.
+
+So, the decision tree model that does best overall (high AUC of ROC, high balanced accuracy, high specificity) uses only G1 and G2 as predictors.
+
+# RANDOM FOREST
+
+Perhaps a random forest, with its superior prediction capabilities, might work?
+
+Since about 10% of the outcomes are "fail", set classwt=c(0.1, 0.9) as randomForest argument.
+
+Random forest with only G1 and G2 as predictors.
+```{r}
+library(randomForest)
+forest.mod.1 <- randomForest(outcome ~ G1 + G2, data = Train.cat, nodesize = 100, ntree = 500, classwt=c(0.1, 0.9))
+forest.pred.1 <- predict(forest.mod.1, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.1, plotit = FALSE) # AUC: 0.856
+table(Test.cat$outcome, forest.pred.1) # Confusion matrix
+(18+234)/261 # Accuracy: 0.97
+((18/(18+7))+(234/(234+2)))/2 # Balanced accuracy: 0.86
+18/(18+7) # Specificity: 0.72
+```
+I would have guessed that a random forest model using G1 and G2 would be better than a decision tree model using G1 and G2, but it's actually not quite as good.
+
+Random forest with all predictors except G1 and G2.
+```{r}
+forest.mod.2 <- randomForest(outcome ~ . -G1 -G2, data = Train.cat, nodesize = 100, ntree = 500, classwt=c(0.1, 0.9))
+forest.pred.2 <- predict(forest.mod.2, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.2, plotit = FALSE) # AUC: 0.50
+table(Test.cat$outcome, forest.pred.2) # Confusion matrix
+(0+236)/261 # Accuracy: 0.90
+((0/25)+(236/236))/2 # Balanced accuracy: 0.5
+0/(0+25) # Specificity: 0
+```
+This model predicts that all students would pass. It is not at all effective.
+
+Random forest using variables identified in stepwise process (same variables as used in best linear regression and best logistic regression).
+```{r}
+forest.mod.3 <- randomForest(outcome ~ failures + course + higher + school, data = Train.cat, nodesize = 100, ntree = 500, classwt=c(0.1, 0.9))
+forest.pred.3 <- predict(forest.mod.3, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.3, plotit = FALSE) # AUC: 0.50
+table(Test.cat$outcome, forest.pred.3) # Confusion matrix
+```
+The confusion matrix shows that this model also predicts that all students would pass.
+
+For comparison, a random forest using all variables (including G1 and G2)
+```{r}
+forest.mod.4 <- randomForest(outcome ~ ., data = Train.cat, nodesize = 100, ntree = 500, classwt=c(0.1, 0.9))
+forest.pred.4 <- predict(forest.mod.4, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.4, plotit = FALSE) # AUC: 0.72
+table(Test.cat$outcome, forest.pred.4) # Confusion matrix
+(11+235)/261 # Accuracy: 0.94
+((11/(11+14))+(235/(235+1)))/2 # Balanced accuracy: 0.718
+11/(11+14) # Specificity: 0.44
+```
+Even with G1 and G2, this really is not a very good model!
+
+Random forest does not seem to be a good method with this dataset.
+
+## I've tried four modeling methods (linear regression, logistic regression, decision trees, and random forests) and none is effective if they do not include G1 and G2 as predictors.
+
+# MODELING WITH G1 BUT WITHOUT G2
+
+One last thing to try: educators would like to know which students are at risk of failing as early as possible. What if I try building models with G1 but not G2? Would one of these work?
+
+No need to try linear regression. We already know that the dropouts are not predictable by linear regression. And the dropouts are the students we'd most like to predict!
+
+# Try logistic regression.
+
+```{r}
+# G1 only
+log.model.7 <- glm(outcome ~ G1, data = Train.cat, family = binomial)
+summary(log.model.7) # AIC: 306.72
+log.model.7.over <- glm(outcome ~ G1, data = Train.cat.over, family = binomial)
+summary(log.model.7.over) # AIC: 1052.7
+log.model.7.under <- glm(outcome ~ G1, data = Train.cat.under, family = binomial)
+summary(log.model.7.under) # AIC: 106.45
+log.model.7.both <- glm(outcome ~ G1, data = Train.cat.both, family = binomial)
+summary(log.model.7.both) # AIC: 581.84
+log.model.7.syn <- glm(outcome ~ G1, data = Train.cat.syn, family = binomial)
+summary(log.model.7.syn) # AIC: 675.68
+# Model with lowest AIC uses undersampling; test it
+log.pred.7.under <- predict(log.model.7.under, newdata = Test.cat, type = "response")
+table(Test.cat$outcome, log.pred.7.under > 0.5) # Confusion matrix
+(22+211)/261 # Accuracy: 0.89
+((22/(22+3))+(211/(211+25)))/2 # Balanced accuracy: 0.89
+22/(22+3) # Specificity: 0.88
+
+# All predictors except G2
+log.model.8 <- glm(outcome ~ . -G2, data = Train.cat, family = binomial)
+summary(log.model.8) # AIC: 343.73
+log.model.8.over <- glm(outcome ~ . -G2, data = Train.cat.over, family = binomial)
+summary(log.model.8.over) # AIC: 689.95
+log.model.8.under <- glm(outcome ~ . -G2, data = Train.cat.under, family = binomial)
+summary(log.model.8.under) # AIC: 144
+log.model.8.both <- glm(outcome ~ . -G2, data = Train.cat.both, family = binomial)
+summary(log.model.8.both) # AIC: 408.36
+log.model.8.syn <- glm(outcome ~ . -G2, data = Train.cat.syn, family = binomial)
+summary(log.model.8.syn) # AIC: 535.86
+# Model with lowest AIC uses undersampling; test it
+log.pred.8.under <- predict(log.model.8.under, newdata = Test.cat, type = "response")
+table(Test.cat$outcome, log.pred.8.under > 0.5) # Confusion matrix
+(22+176)/261 # Accuracy: 0.76
+((22/(22+3))+(176/(176+60)))/2 # Balanced accuracy: 0.81
+22/(22+3) # Specificity: 0.88
+
+# Presume that undersampling is the best balancing method.
+
+# Check AIC on G1 + combination of (failures + course + higher + school)
+log.model.9.under <- glm(outcome ~ G1 + failures, data = Train.cat.under, family = binomial)
+summary(log.model.9.under) # AIC: 109.94
+log.model.10.under <- glm(outcome ~ G1 + failures + course, data = Train.cat.under, family = binomial)
+summary(log.model.10.under) # AIC: 105.4
+log.model.11.under <- glm(outcome ~ G1 + failures + course + higher, data = Train.cat.under, family = binomial)
+summary(log.model.11.under) # AIC: 106.97
+log.model.12.under <- glm(outcome ~ G1 + failures + course + higher + school, data = Train.cat.under, family = binomial)
+summary(log.model.12.under) # AIC: 108.55
+
+# log.model.10.under has lowest AIC, so test this one.
+log.pred.10.under <- predict(log.model.10.under, newdata = Test.cat, type = "response")
+table(Test.cat$outcome, log.pred.10.under > 0.5) # Confusion matrix
+(23+201)/261 # Accuracy: 0.86
+((23/(23+2))+(201/(201+35)))/2 # Balanced accuracy: 0.89
+23/(23+2) # Specificity: 0.92
+```
+log.model.10.under is a good model: balanced accuracy and specificity are both pretty good.
+
+Can I do better with decision trees? (Try with different balancing methods.)
+
+```{r}
+# G1 only
+tree.mod.8 <- rpart(outcome ~ G1, data = Train.cat, method = "class")
+tree.pred.8 <- predict(tree.mod.8, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.8, plotit = FALSE) # AUC: 0.672
+
+tree.mod.8.over <- rpart(outcome ~ G1, data = Train.cat.over, method = "class")
+tree.pred.8.over <- predict(tree.mod.8.over, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.8.over, plotit = FALSE) # AUC: 0.854
+
+tree.mod.8.under <- rpart(outcome ~ G1, data = Train.cat.under, method = "class")
+tree.pred.8.under <- predict(tree.mod.8.under, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.8.under, plotit = FALSE) # AUC: 0.887 BEST
+
+tree.mod.8.both <- rpart(outcome ~ G1, data = Train.cat.both, method = "class")
+tree.pred.8.both <- predict(tree.mod.8.both, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.8.both, plotit = FALSE) # AUC: 0.854
+
+tree.mod.8.syn <- rpart(outcome ~ G1, data = Train.cat.syn, method = "class")
+tree.pred.8.syn <- predict(tree.mod.8.syn, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.8.syn, plotit = FALSE) # AUC: 0.854
+
+# All predictors except G2
+tree.mod.9 <- rpart(outcome ~ . -G2, data = Train.cat, method = "class")
+tree.pred.9 <- predict(tree.mod.9, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.9, plotit = FALSE) # AUC: 0.841
+
+tree.mod.9.over <- rpart(outcome ~ . -G2, data = Train.cat.over, method = "class")
+tree.pred.9.over <- predict(tree.mod.9.over, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.9.over, plotit = FALSE) # AUC: 0.871 BEST
+
+tree.mod.9.under <- rpart(outcome ~ . -G2, data = Train.cat.under, method = "class")
+tree.pred.9.under <- predict(tree.mod.9.under, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.9.under, plotit = FALSE) # AUC: 0.827
+
+tree.mod.9.both <- rpart(outcome ~ . -G2, data = Train.cat.both, method = "class")
+tree.pred.9.both <- predict(tree.mod.9.both, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.9.both, plotit = FALSE) # AUC: 0.854
+
+tree.mod.9.syn <- rpart(outcome ~ . -G2, data = Train.cat.syn, method = "class")
+tree.pred.9.syn <- predict(tree.mod.9.syn, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.9.syn, plotit = FALSE) # AUC: 0.868
+
+# G1 + combination of (failures + course + higher + school)
+
+# G1 + failures
+tree.mod.10 <- rpart(outcome ~ G1 + failures, data = Train.cat, method = "class")
+tree.pred.10 <- predict(tree.mod.10, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.10, plotit = FALSE) # AUC: 0.594
+
+tree.mod.10.over <- rpart(outcome ~ G1 + failures, data = Train.cat.over, method = "class")
+tree.pred.10.over <- predict(tree.mod.10.over, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.10.over, plotit = FALSE) # AUC: 0.848
+
+tree.mod.10.under <- rpart(outcome ~ G1 + failures, data = Train.cat.under, method = "class")
+tree.pred.10.under <- predict(tree.mod.10.under, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.10.under, plotit = FALSE) # AUC: 0.887 BEST
+
+tree.mod.10.both <- rpart(outcome ~ G1 + failures, data = Train.cat.both, method = "class")
+tree.pred.10.both <- predict(tree.mod.10.both, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.10.both, plotit = FALSE) # AUC: 0.848
+
+tree.mod.10.syn <- rpart(outcome ~ G1 + failures, data = Train.cat.syn, method = "class")
+tree.pred.10.syn <- predict(tree.mod.10.syn, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.10.syn, plotit = FALSE) # AUC: 0.855
+
+# G1 + failures + course
+tree.mod.11 <- rpart(outcome ~ G1 + failures + course, data = Train.cat, method = "class")
+tree.pred.11 <- predict(tree.mod.11, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.11, plotit = FALSE) # AUC: 0.692
+
+tree.mod.11.over <- rpart(outcome ~ G1 + failures + course, data = Train.cat.over, method = "class")
+tree.pred.11.over <- predict(tree.mod.11.over, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.11.over, plotit = FALSE) # AUC: 0.848
+
+tree.mod.11.under <- rpart(outcome ~ G1 + failures + course, data = Train.cat.under, method = "class")
+tree.pred.11.under <- predict(tree.mod.11.under, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.11.under, plotit = FALSE) # AUC: 0.887 BEST
+
+tree.mod.11.both <- rpart(outcome ~ G1 + failures + course, data = Train.cat.both, method = "class")
+tree.pred.11.both <- predict(tree.mod.11.both, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.11.both, plotit = FALSE) # AUC: 0.848
+
+tree.mod.11.syn <- rpart(outcome ~ G1 + failures + course, data = Train.cat.syn, method = "class")
+tree.pred.11.syn <- predict(tree.mod.11.syn, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.11.syn, plotit = FALSE) # AUC: 0.855
+
+# G1 + failures + course + higher
+tree.mod.12 <- rpart(outcome ~ G1 + failures + course + higher, data = Train.cat, method = "class")
+tree.pred.12 <- predict(tree.mod.12, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.12, plotit = FALSE) # AUC: 0.727
+
+tree.mod.12.over <- rpart(outcome ~ G1 + failures + course + higher, data = Train.cat.over, method = "class")
+tree.pred.12.over <- predict(tree.mod.12.over, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.12.over, plotit = FALSE) # AUC: 0.848
+
+tree.mod.12.under <- rpart(outcome ~ G1 + failures + course + higher, data = Train.cat.under, method = "class")
+tree.pred.12.under <- predict(tree.mod.12.under, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.12.under, plotit = FALSE) # AUC: 0.887 BEST
+
+tree.mod.12.both <- rpart(outcome ~ G1 + failures + course + higher, data = Train.cat.both, method = "class")
+tree.pred.12.both <- predict(tree.mod.12.both, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.12.both, plotit = FALSE) # AUC: 0.848
+
+tree.mod.12.syn <- rpart(outcome ~ G1 + failures + course + higher, data = Train.cat.syn, method = "class")
+tree.pred.12.syn <- predict(tree.mod.12.syn, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.12.syn, plotit = FALSE) # AUC: 0.855
+
+# G1 + failures + course + higher + school
+tree.mod.13 <- rpart(outcome ~ G1 + failures + course + higher + school, data = Train.cat, method = "class")
+tree.pred.13 <- predict(tree.mod.13, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.13, plotit = FALSE) # AUC: 0.727
+
+tree.mod.13.over <- rpart(outcome ~ G1 + failures + course + higher + school, data = Train.cat.over, method = "class")
+tree.pred.13.over <- predict(tree.mod.13.over, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.13.over, plotit = FALSE) # AUC: 0.848
+
+tree.mod.13.under <- rpart(outcome ~ G1 + failures + course + higher + school, data = Train.cat.under, method = "class")
+tree.pred.13.under <- predict(tree.mod.13.under, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.13.under, plotit = FALSE) # AUC: 0.887 BEST
+
+tree.mod.13.both <- rpart(outcome ~ G1 + failures + course + higher + school, data = Train.cat.both, method = "class")
+tree.pred.13.both <- predict(tree.mod.13.both, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.13.both, plotit = FALSE) # AUC: 0.848
+
+tree.mod.13.syn <- rpart(outcome ~ G1 + failures + course + higher + school, data = Train.cat.syn, method = "class")
+tree.pred.13.syn <- predict(tree.mod.13.syn, newdata = Test.cat, type = "class")
+roc.curve(Test.cat$outcome, tree.pred.13.syn, plotit = FALSE) # AUC: 0.855
+
+# Test the best decision tree models.
+table(Test.cat$outcome, tree.pred.8.under) # Confusion matrix
+(22+211)/261 # Accuracy: 0.89
+((22/(22+3))+(211/(211+25)))/2 # Balanced accuracy: 0.89
+22/(22+3) # Specificity: 0.88
+# What does it mean to have a decision tree with only one variable?
+
+table(Test.cat$outcome, tree.pred.9.over) # Confusion matrix
+(21+213)/261 # Accuracy: 0.897
+((21/(21+4))+(213/(213+23)))/2 # Balanced accuracy: 0.87
+21/(21+4) # Specificity: 0.84
+
+table(Test.cat$outcome, tree.pred.10.under) # Confusion matrix
+(22+211)/261 # Accuracy: 0.89
+((22/(22+3))+(211/(211+25)))/2 # Balanced accuracy: 0.89
+22/(22+3) # Specificity: 0.88
+
+table(Test.cat$outcome, tree.pred.11.under) # Confusion matrix
+(22+211)/261 # Accuracy: 0.89
+((22/(22+3))+(211/(211+25)))/2 # Balanced accuracy: 0.89
+22/(22+3) # Specificity: 0.88
+
+table(Test.cat$outcome, tree.pred.12.under) # Confusion matrix
+(22+211)/261 # Accuracy: 0.89
+((22/(22+3))+(211/(211+25)))/2 # Balanced accuracy: 0.89
+22/(22+3) # Specificity: 0.88
+
+table(Test.cat$outcome, tree.pred.13.under) # Confusion matrix
+(22+211)/261 # Accuracy: 0.89
+((22/(22+3))+(211/(211+25)))/2 # Balanced accuracy: 0.89
+22/(22+3) # Specificity: 0.88
+```
+
+Most of these models (8, 10, 11, 12, 13) produce identical confusion matrixes.
+These are all the models that use undersampling as the balancing method.
+These models are good, but not great.
+
+Finally, try random forest
+
+```{r}
+# G1 only
+# Not balanced
+forest.mod.8 <- randomForest(outcome ~ G1, data = Train.cat, nodesize = 100, ntree = 500)
+forest.pred.8 <- predict(forest.mod.8, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.8, plotit = FALSE) # AUC: 0.857
+
+# Balanced
+forest.mod.8.bal <- randomForest(outcome ~ G1, data = Train.cat, nodesize = 100, ntree = 500, classwt = c(0.1, 0.9))
+forest.pred.8.bal <- predict(forest.mod.8.bal, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.8.bal, plotit = FALSE) # AUC: 0.857
+
+# All predictors except G2
+# Not balanced
+forest.mod.9 <- randomForest(outcome ~ . -G2, data = Train.cat, nodesize = 100, ntree = 500)
+forest.pred.9 <- predict(forest.mod.9, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.9, plotit = FALSE) # AUC: 0.50
+
+# Balanced
+forest.mod.9.bal <- randomForest(outcome ~ . -G2, data = Train.cat, nodesize = 100, ntree = 500, classwt = c(0.1, 0.9))
+forest.pred.9.bal <- predict(forest.mod.9.bal, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.9.bal, plotit = FALSE) # AUC: 0.50
+
+# G1 + combination of (failures + course + higher + school)
+
+# G1 + failures
+# Not balanced
+forest.mod.10 <- randomForest(outcome ~ G1 + failures, data = Train.cat, nodesize = 100, ntree = 500)
+forest.pred.10 <- predict(forest.mod.10, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.10, plotit = FALSE) # AUC: 0.627
+
+# Balanced
+forest.mod.10.bal <- randomForest(outcome ~ G1 + failures, data = Train.cat, nodesize = 100, ntree = 500, classwt = c(0.1, 0.9))
+forest.pred.10.bal <- predict(forest.mod.10.bal, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.10.bal, plotit = FALSE) # AUC: 0.685
+
+# G1 + failures + course
+# Not balanced
+forest.mod.11 <- randomForest(outcome ~ G1 + failures + course, data = Train.cat, nodesize = 100, ntree = 500)
+forest.pred.11 <- predict(forest.mod.11, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.11, plotit = FALSE) # AUC: 0.598
+
+# Balanced
+forest.mod.11.bal <- randomForest(outcome ~ G1 + failures + course, data = Train.cat, nodesize = 100, ntree = 500, classwt = c(0.1, 0.9))
+forest.pred.11.bal <- predict(forest.mod.11.bal, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.11.bal, plotit = FALSE) # AUC: 0.538
+
+# G1 + failures + course + higher
+# Not balanced
+forest.mod.12 <- randomForest(outcome ~ G1 + failures + course + higher, data = Train.cat, nodesize = 100, ntree = 500)
+forest.pred.12 <- predict(forest.mod.12, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.12, plotit = FALSE) # AUC: 0.812
+
+# Balanced
+forest.mod.12.bal <- randomForest(outcome ~ G1 + failures + course + higher, data = Train.cat, nodesize = 100, ntree = 500, classwt = c(0.1, 0.9))
+forest.pred.12.bal <- predict(forest.mod.12.bal, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.12.bal, plotit = FALSE) # AUC: 0.821
+
+# G1 + failures + course + higher + school
+# Not balanced
+forest.mod.13 <- randomForest(outcome ~ G1 + failures + course + higher + school, data = Train.cat, nodesize = 100, ntree = 500)
+forest.pred.13 <- predict(forest.mod.13, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.13, plotit = FALSE) # AUC: 0.674
+
+# Balanced
+forest.mod.13.bal <- randomForest(outcome ~ G1 + failures + course + higher + school, data = Train.cat, nodesize = 100, ntree = 500, classwt = c(0.1, 0.9))
+forest.pred.13.bal <- predict(forest.mod.13.bal, newdata = Test.cat)
+roc.curve(Test.cat$outcome, forest.pred.13.bal, plotit = FALSE) # AUC: 0.749
+
+# Test the best random forest models
+table(Test.cat$outcome, forest.pred.8.bal) # Confusion matrix
+(19+225)/261 # Accuracy: 0.93
+((19/(19+6))+(225/(225+11)))/2 # Balanced accuracy: 0.86
+19/(19+6) # Specificity: 0.76
+
+table(Test.cat$outcome, forest.pred.12.bal) # Confusion matrix
+(17+227)/261 # Accuracy: 0.93
+((17/(17+8))+(227/(227+9)))/2 # Balanced accuracy: 0.82
+17/(17+8) # Specificity: 0.68
+```
+
+The first one is ok, not that great. Besides, what does it even mean to use a decision tree based model when there is only one variable?
